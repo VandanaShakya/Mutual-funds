@@ -1,8 +1,74 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 // Base URL for the API
 const MF_API_URL = "https://api.mfapi.in/mf";
+
+// Virtualized list component for better performance
+const VirtualizedSchemeList = ({ filteredData, handleSchemeClick }) => {
+  const [visibleItems, setVisibleItems] = useState(20);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
+        setVisibleItems(prev => Math.min(prev + 20, filteredData.length));
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [filteredData.length]);
+
+  useEffect(() => {
+    setVisibleItems(20);
+  }, [filteredData]);
+
+  const itemsToShow = filteredData.slice(0, visibleItems);
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      {itemsToShow.map((mf) => (
+        <SchemeCard key={mf.schemeCode} mf={mf} onClick={handleSchemeClick} />
+      ))}
+    </div>
+  );
+};
+
+// Memoized card component to prevent unnecessary re-renders
+const SchemeCard = React.memo(({ mf, onClick }) => {
+  return (
+    <div 
+      className="group cursor-pointer"
+      onClick={() => onClick(mf.schemeCode)}
+    >
+      <div className="relative h-full p-6 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1">
+        {/* Gradient Overlay on Hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-cyan-500/0 group-hover:from-blue-500/5 group-hover:to-cyan-500/5 transition-all duration-300"></div>
+        
+        {/* Content */}
+        <div className="relative z-10">
+          {/* Scheme Name */}
+          <h3 className="font-semibold text-base leading-snug text-slate-200 group-hover:text-white transition-colors duration-300 line-clamp-3 mb-4">
+            {mf.schemeName}
+          </h3>
+          
+          {/* View Details Button */}
+          <div className="flex items-center gap-2 text-sm text-blue-400 group-hover:text-cyan-400 transition-all duration-300 group-hover:gap-3">
+            <span className="font-medium">View Details</span>
+            <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
+        </div>
+        
+        {/* Decorative Element */}
+        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
+      </div>
+    </div>
+  );
+});
+
+SchemeCard.displayName = 'SchemeCard';
 
 const MfData = () => {
   const [data, setData] = useState([]);
@@ -22,6 +88,7 @@ const MfData = () => {
           const json = await response.json();
           setData(json);
           setLoading(false);
+          console.log(response)
           return;
         } catch (error) {
           if (i < retries - 1) {
@@ -36,16 +103,21 @@ const MfData = () => {
     
     fetchWithRetry(MF_API_URL);
   }, []);
+  console.log( data);
 
-  // Handler for scheme click
-  const handleSchemeClick = (schemeCode) => {
+  // Handler for scheme click - memoized to prevent recreation
+  const handleSchemeClick = useCallback((schemeCode) => {
     navigate(`/scheme/${schemeCode}`);
-  };
+  }, [navigate]);
 
-  // Filter data based on search term
-  const filteredData = data.filter(mf => 
-    mf.schemeName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Debounced search with useMemo for better performance
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return data;
+    const lowerSearch = searchTerm.toLowerCase();
+    return data.filter(mf => 
+      mf.schemeName.toLowerCase().includes(lowerSearch)
+    );
+  }, [data, searchTerm]);
 
   // Loading state with elegant animation
   if (loading)
@@ -84,7 +156,9 @@ const MfData = () => {
                 <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400">
                   Mutual Funds
                 </h1>
-                <p className="text-sm text-slate-400 font-light">Explore {data.length}+ investment schemes</p>
+                <p className="text-sm text-slate-400 font-light">
+                  {searchTerm ? `${filteredData.length} schemes found` : `Explore ${data.length}+ investment schemes`}
+                </p>
               </div>
             </div>
             
@@ -100,6 +174,16 @@ const MfData = () => {
               <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -117,42 +201,10 @@ const MfData = () => {
             <p className="text-slate-400 text-lg">No schemes found matching your search</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filteredData.map((mf) => (
-              <div 
-                key={mf.schemeCode} 
-                className="group cursor-pointer"
-                onClick={() => handleSchemeClick(mf.schemeCode)}
-              >
-                <div className="relative h-full p-6 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1">
-                  {/* Gradient Overlay on Hover */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-cyan-500/0 group-hover:from-blue-500/5 group-hover:to-cyan-500/5 transition-all duration-300"></div>
-                  
-                  {/* Content */}
-                  <div className="relative z-10">
-                    {/* Scheme Code Badge */}
-                
-                    
-                    {/* Scheme Name */}
-                    <h3 className="font-semibold text-base leading-snug text-slate-200 group-hover:text-white transition-colors duration-300 line-clamp-3 mb-4">
-                      {mf.schemeName}
-                    </h3>
-                    
-                    {/* View Details Button */}
-                    <div className="flex items-center gap-2 text-sm text-blue-400 group-hover:text-cyan-400 transition-all duration-300 group-hover:gap-3">
-                      <span className="font-medium">View Details</span>
-                      <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                      </svg>
-                    </div>
-                  </div>
-                  
-                  {/* Decorative Element */}
-                  <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <VirtualizedSchemeList 
+            filteredData={filteredData} 
+            handleSchemeClick={handleSchemeClick} 
+          />
         )}
       </div>
     </div>

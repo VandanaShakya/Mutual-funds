@@ -25,12 +25,71 @@ const SelectedSchemePage = () => {
   const navigate = useNavigate();
   const [schemeData, setSchemeData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [timeFilter, setTimeFilter] = useState('current'); // 'year', 'month', 'current'
+  const [dataAvailability, setDataAvailability] = useState({
+    year: true,
+    month: true,
+    current: true
+  });
 
   useEffect(() => {
     fetch(`https://api.mfapi.in/mf/${schemeCode}`)
       .then((res) => res.json())
       .then((json) => {
         setSchemeData(json);
+        
+        // Check data availability for each time period
+        const allData = Array.isArray(json.data) ? json.data : [];
+        if (allData.length > 0) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Check for year data
+          const yearDate = new Date(today);
+          yearDate.setMonth(today.getMonth() - 12);
+          const yearData = allData.filter(item => {
+            const dateParts = item.date.split('-');
+            const itemDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+            itemDate.setHours(0, 0, 0, 0);
+            return itemDate >= yearDate && itemDate <= today;
+          });
+          
+          // Check for month data
+          const monthDate = new Date(today);
+          monthDate.setMonth(today.getMonth() - 1);
+          const monthData = allData.filter(item => {
+            const dateParts = item.date.split('-');
+            const itemDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+            itemDate.setHours(0, 0, 0, 0);
+            return itemDate >= monthDate && itemDate <= today;
+          });
+          
+          // Check for current (10 days) data
+          const currentDate = new Date(today);
+          currentDate.setDate(today.getDate() - 10);
+          const currentData = allData.filter(item => {
+            const dateParts = item.date.split('-');
+            const itemDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+            itemDate.setHours(0, 0, 0, 0);
+            return itemDate >= currentDate && itemDate <= today;
+          });
+          
+          setDataAvailability({
+            year: yearData.length > 0,
+            month: monthData.length > 0,
+            current: currentData.length > 0
+          });
+          
+          // Set default filter to first available period
+          if (currentData.length > 0) {
+            setTimeFilter('current');
+          } else if (monthData.length > 0) {
+            setTimeFilter('month');
+          } else if (yearData.length > 0) {
+            setTimeFilter('year');
+          }
+        }
+        
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -62,8 +121,49 @@ const SelectedSchemePage = () => {
       </div>
     );
 
-  const navEntries = Array.isArray(schemeData.data) ? schemeData.data.slice(0, 30) : [];
-  const chronological = [...navEntries].reverse();
+  // Filter data based on selected time period (exact calculation from today)
+  const getFilteredData = () => {
+    const allData = Array.isArray(schemeData.data) ? schemeData.data : [];
+    if (allData.length === 0) return [];
+    
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Calculate target date based on filter
+    let targetDate = new Date(today);
+    
+    switch(timeFilter) {
+      case 'year':
+        // Exactly 12 months back from today
+        targetDate.setMonth(today.getMonth() - 12);
+        break;
+      case 'month':
+        // Exactly 1 month back from today
+        targetDate.setMonth(today.getMonth() - 1);
+        break;
+      case 'current':
+      default:
+        // Exactly 10 days back from today
+        targetDate.setDate(today.getDate() - 10);
+        break;
+    }
+    
+    // Filter data that falls within the date range
+    return allData.filter(item => {
+      // Parse date from API (format: "DD-MM-YYYY")
+      const dateParts = item.date.split('-');
+      const itemDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+      itemDate.setHours(0, 0, 0, 0);
+      
+      // Include data from target date to today
+      return itemDate >= targetDate && itemDate <= today;
+    });
+  };
+
+  const navEntries = getFilteredData();
+  const hasData = navEntries.length > 0;
+  const chronological = hasData ? [...navEntries].reverse() : [];
   const labels = chronological.map((d) => d.date);
   const navValues = chronological.map((d) => parseFloat(d.nav?.replace(/,/g, "")) || 0);
 
@@ -124,7 +224,7 @@ const SelectedSchemePage = () => {
           color: "#64748b",
           maxRotation: 45,
           autoSkip: true,
-          maxTicksLimit: 8,
+          maxTicksLimit: timeFilter === 'year' ? 12 : 8,
           font: {
             size: 11,
           },
@@ -145,6 +245,30 @@ const SelectedSchemePage = () => {
         },
       },
     },
+  };
+
+  const getTimePeriodText = () => {
+    const today = new Date();
+    const formatDate = (date) => {
+      const d = new Date(date);
+      return `${d.getDate().toString().padStart(2, '0')}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getFullYear()}`;
+    };
+    
+    let startDate = new Date(today);
+    
+    switch(timeFilter) {
+      case 'year':
+        startDate.setMonth(today.getMonth() - 12);
+        return `Last 12 months (${formatDate(startDate)} to ${formatDate(today)})`;
+      case 'month':
+        startDate.setMonth(today.getMonth() - 1);
+        return `Last 1 month (${formatDate(startDate)} to ${formatDate(today)})`;
+      case 'current':
+        startDate.setDate(today.getDate() - 10);
+        return `Last 10 days (${formatDate(startDate)} to ${formatDate(today)})`;
+      default:
+        return 'Current period';
+    }
   };
 
   return (
@@ -193,14 +317,25 @@ const SelectedSchemePage = () => {
             {/* Performance Card */}
             <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-700/50 min-w-[200px]">
               <p className="text-slate-400 text-sm mb-2">Current NAV</p>
-              <p className="text-3xl font-bold text-white mb-2">₹{latestNav.toFixed(2)}</p>
-              <div className={`flex items-center gap-2 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                <svg className={`w-5 h-5 ${isPositive ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                </svg>
-                <span className="font-semibold">{isPositive ? '+' : ''}{changePercent}%</span>
-                <span className="text-xs text-slate-500">({navValues.length} days)</span>
-              </div>
+              {hasData ? (
+                <>
+                  <p className="text-3xl font-bold text-white mb-2">₹{latestNav.toFixed(2)}</p>
+                  <div className={`flex items-center gap-2 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                    <svg className={`w-5 h-5 ${isPositive ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                    <span className="font-semibold">{isPositive ? '+' : ''}{changePercent}%</span>
+                    <span className="text-xs text-slate-500">({navValues.length} days)</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-slate-600 mb-2">--</p>
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <span className="text-sm">No data available</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -210,46 +345,138 @@ const SelectedSchemePage = () => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold text-white mb-1">NAV Performance</h2>
-              <p className="text-slate-400 text-sm">Last 30 days trend analysis</p>
+              <p className="text-slate-400 text-sm">{getTimePeriodText()} trend analysis</p>
             </div>
             <div className="px-4 py-2 rounded-lg bg-blue-500/10 border border-blue-500/30">
               <span className="text-blue-400 text-sm font-medium">Bar Chart View</span>
             </div>
           </div>
           <div className="h-[400px] p-4 rounded-xl bg-slate-900/30">
-            <Bar data={chartData} options={options} />
+            {hasData ? (
+              <Bar data={chartData} options={options} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="inline-block p-6 rounded-full bg-slate-800/50 mb-4">
+                  <svg className="w-16 h-16 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                  </svg>
+                </div>
+                <p className="text-slate-400 text-xl font-medium mb-2">No Data Available</p>
+                <p className="text-slate-500 text-sm">
+                  {timeFilter === 'year' && 'No data available for the previous 1 year period'}
+                  {timeFilter === 'month' && 'No data available for the previous 1 month period'}
+                  {timeFilter === 'current' && 'No data available for the previous 10 days period'}
+                </p>
+                <p className="text-slate-600 text-xs mt-2">Try selecting a different time period</p>
+              </div>
+            )}
           </div>
           
           {/* Action Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-            <button className="group relative overflow-hidden px-6 py-4 rounded-xl from-blue-500/20 to-blue-600/20 border border-blue-500/30 hover:border-blue-400 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5">
-              <div className="absolute inset-0 from-blue-500/0 to-blue-600/0 group-hover:from-blue-500/10 group-hover:to-blue-600/10 transition-all duration-300"></div>
-              <div className="relative flex items-center justify-center gap-3 cursor-pointer">
-                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            <button 
+              onClick={() => dataAvailability.year && setTimeFilter('year')}
+              disabled={!dataAvailability.year}
+              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
+                !dataAvailability.year 
+                  ? 'opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30' 
+                  : timeFilter === 'year' 
+                    ? 'from-blue-500/30 to-blue-600/30 border-blue-400 shadow-lg shadow-blue-500/20 hover:-translate-y-0.5' 
+                    : 'from-blue-500/20 to-blue-600/20 border-blue-500/30 hover:border-blue-400 hover:shadow-blue-500/20 hover:-translate-y-0.5'
+              }`}
+            >
+              <div className={`absolute inset-0 transition-all duration-300 ${
+                !dataAvailability.year
+                  ? ''
+                  : timeFilter === 'year'
+                    ? 'from-blue-500/10 to-blue-600/10'
+                    : 'from-blue-500/0 to-blue-600/0 group-hover:from-blue-500/10 group-hover:to-blue-600/10'
+              }`}></div>
+              <div className="relative flex items-center justify-center gap-3">
+                <svg className={`w-5 h-5 ${dataAvailability.year ? 'text-blue-400' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                 </svg>
-                <span className="font-semibold text-white">Download Report</span>
+                <span className={`font-semibold ${dataAvailability.year ? 'text-white' : 'text-slate-600'}`}>
+                  Previous 1 Year
+                </span>
               </div>
+              {!dataAvailability.year && (
+                <div className="absolute top-1 right-1">
+                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
+                    <span className="text-xs text-slate-500">No Data</span>
+                  </div>
+                </div>
+              )}
             </button>
 
-            <button className="group relative overflow-hidden px-6 py-4 rounded-xl from-cyan-500/20 to-cyan-600/20 border border-cyan-500/30 hover:border-cyan-400 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/20 hover:-translate-y-0.5">
-              <div className="absolute inset-0 from-cyan-500/0 to-cyan-600/0 group-hover:from-cyan-500/10 group-hover:to-cyan-600/10 transition-all duration-300"></div>
-              <div className="relative flex items-center justify-center gap-3 cursor-pointer">
-                <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+            <button 
+              onClick={() => dataAvailability.month && setTimeFilter('month')}
+              disabled={!dataAvailability.month}
+              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
+                !dataAvailability.month 
+                  ? 'opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30' 
+                  : timeFilter === 'month' 
+                    ? 'from-cyan-500/30 to-cyan-600/30 border-cyan-400 shadow-lg shadow-cyan-500/20 hover:-translate-y-0.5' 
+                    : 'from-cyan-500/20 to-cyan-600/20 border-cyan-500/30 hover:border-cyan-400 hover:shadow-cyan-500/20 hover:-translate-y-0.5'
+              }`}
+            >
+              <div className={`absolute inset-0 transition-all duration-300 ${
+                !dataAvailability.month
+                  ? ''
+                  : timeFilter === 'month'
+                    ? 'from-cyan-500/10 to-cyan-600/10'
+                    : 'from-cyan-500/0 to-cyan-600/0 group-hover:from-cyan-500/10 group-hover:to-cyan-600/10'
+              }`}></div>
+              <div className="relative flex items-center justify-center gap-3">
+                <svg className={`w-5 h-5 ${dataAvailability.month ? 'text-cyan-400' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                 </svg>
-                <span className="font-semibold text-white">Privious 10 days</span>
+                <span className={`font-semibold ${dataAvailability.month ? 'text-white' : 'text-slate-600'}`}>
+                  Previous 1 Month
+                </span>
               </div>
+              {!dataAvailability.month && (
+                <div className="absolute top-1 right-1">
+                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
+                    <span className="text-xs text-slate-500">No Data</span>
+                  </div>
+                </div>
+              )}
             </button>
 
-            <button className="group relative overflow-hidden px-6 py-4 rounded-xl from-purple-500/20 to-purple-600/20 border border-purple-500/30 hover:border-purple-400 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/20 hover:-translate-y-0.5">
-              <div className="absolute inset-0 from-purple-500/0 to-purple-600/0 group-hover:from-purple-500/10 group-hover:to-purple-600/10 transition-all duration-300"></div>
-              <div className="relative flex items-center justify-center gap-3 cursor-pointer">
-                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+            <button 
+              onClick={() => dataAvailability.current && setTimeFilter('current')}
+              disabled={!dataAvailability.current}
+              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
+                !dataAvailability.current 
+                  ? 'opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30' 
+                  : timeFilter === 'current' 
+                    ? 'from-purple-500/30 to-purple-600/30 border-purple-400 shadow-lg shadow-purple-500/20 hover:-translate-y-0.5' 
+                    : 'from-purple-500/20 to-purple-600/20 border-purple-500/30 hover:border-purple-400 hover:shadow-purple-500/20 hover:-translate-y-0.5'
+              }`}
+            >
+              <div className={`absolute inset-0 transition-all duration-300 ${
+                !dataAvailability.current
+                  ? ''
+                  : timeFilter === 'current'
+                    ? 'from-purple-500/10 to-purple-600/10'
+                    : 'from-purple-500/0 to-purple-600/0 group-hover:from-purple-500/10 group-hover:to-purple-600/10'
+              }`}></div>
+              <div className="relative flex items-center justify-center gap-3">
+                <svg className={`w-5 h-5 ${dataAvailability.current ? 'text-purple-400' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <span className="font-semibold text-white">Current data</span>
+                <span className={`font-semibold ${dataAvailability.current ? 'text-white' : 'text-slate-600'}`}>
+                  Current (10 Days)
+                </span>
               </div>
+              {!dataAvailability.current && (
+                <div className="absolute top-1 right-1">
+                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
+                    <span className="text-xs text-slate-500">No Data</span>
+                  </div>
+                </div>
+              )}
             </button>
           </div>
         </div>
