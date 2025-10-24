@@ -11,6 +11,7 @@ import {
   Legend,
   PointElement,
   LineElement,
+  Filler
 } from "chart.js";
 import { Chart } from "react-chartjs-2";
 
@@ -23,7 +24,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   PointElement,
-  LineElement
+  LineElement,
+  Filler
 );
 
 const SelectedSchemePage = () => {
@@ -256,7 +258,7 @@ const SelectedSchemePage = () => {
     });
   };
 
-  const navEntries = getFilteredData(); // This is newest-first because API returns newest-first
+  const navEntries = getFilteredData(); // newest-first
   const hasData = navEntries.length > 0;
 
   // For chart use chronological (oldest-first)
@@ -431,34 +433,45 @@ const SelectedSchemePage = () => {
     return <Chart ref={chartRef} type={chartType} data={chartData} options={currentOptions} />;
   };
 
-  const tableData = navEntries; // e.g., navEntries.slice(0, 100) to limit to 100 rows
+  // ---------------- NAV HISTORY TABLES ----------------
+  // fullData = entire API data (newest-first)
+  const fullData = Array.isArray(schemeData.data) ? schemeData.data : [];
 
+  // ---------- YEARLY SUMMARY (built from fullData) ----------
+  const parseNav = (navString) => parseFloat((navString || "0").replace(/,/g, ""));
 
+  const yearlyMap = new Map();
+  (fullData || []).forEach((item) => {
+    const dateParts = item.date.split("-");
+    const itemDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+    const year = itemDate.getFullYear();
+    const nav = parseNav(item.nav);
 
-  // yearly data //
-  // ---------------- YEARLY AGGREGATION (place after navEntries is available) ----------------
-const parseNav = (navString) => parseFloat((navString || "0").replace(/,/g, ""));
+    // fullData is newest-first, so first occurrence per year = latest NAV in that year
+    if (!yearlyMap.has(year)) {
+      yearlyMap.set(year, { year, nav, date: item.date, count: 1 });
+    } else {
+      const prev = yearlyMap.get(year);
+      prev.count = (prev.count || 1) + 1;
+      yearlyMap.set(year, prev);
+    }
+  });
 
-// Build a map: year -> { year, nav (latest in that year), date, count }
-const yearlyMap = new Map();
-(navEntries || []).forEach((item) => {
-  const dateParts = item.date.split("-");
-  const itemDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
-  const year = itemDate.getFullYear();
-  const nav = parseNav(item.nav);
+  const yearsArrayDesc = Array.from(yearlyMap.values()).sort((a, b) => b.year - a.year);
 
-  // navEntries is newest-first, so first occurrence for a year is the latest NAV in that year
-  if (!yearlyMap.has(year)) {
-    yearlyMap.set(year, { year, nav, date: item.date, count: 1 });
-  } else {
-    const prev = yearlyMap.get(year);
-    prev.count = (prev.count || 1) + 1; // optional metadata
-    yearlyMap.set(year, prev);
-  }
-});
+  // ---------- FILTERED NAV LIST (based on timeFilter) ----------
+  // navEntries is newest-first (API returns newest-first and getFilteredData preserves that)
+  const filteredList = navEntries; // newest -> older for selected period
 
-// Convert to array sorted from current year -> oldest
-const yearsArrayDesc = Array.from(yearlyMap.values()).sort((a, b) => b.year - a.year);
+  // helper to compute per-row change for filtered list (newest-first)
+  const computeRowDiff = (list, idx) => {
+    const current = parseNav(list[idx].nav);
+    const next = list[idx + 1] ? parseNav(list[idx + 1].nav) : null;
+    if (next === null) return { diff: 0, diffPercent: 0, hasPrev: false };
+    const diff = current - next;
+    const diffPercent = next !== 0 ? (diff / next) * 100 : 0;
+    return { diff, diffPercent, hasPrev: true };
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
@@ -733,15 +746,15 @@ const yearsArrayDesc = Array.from(yearlyMap.values()).sort((a, b) => b.year - a.
           </div>
         </div>
 
-        {/* ---------------- NAV HISTORY TABLE (Current -> Older) ---------------- */}
-        <div className="mb-12 p-6 rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-800/20 border border-slate-700/40">
+        {/* ---------------- YEARLY SUMMARY TABLE (Full History) ---------------- */}
+        <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-800/20 border border-slate-700/40">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-xl font-semibold">Recent NAV History</h3>
-              <p className="text-slate-400 text-sm">Showing entries from current (top) to older (bottom).</p>
+              <h3 className="text-xl font-semibold">Yearly Summary (Full History)</h3>
+              <p className="text-slate-400 text-sm">Static summary built from full available history (Max previous).</p>
             </div>
             <div className="text-sm text-slate-400">
-              <span>Total rows: {tableData.length}</span>
+              <span>Total years: {yearsArrayDesc.length}</span>
             </div>
           </div>
 
@@ -749,57 +762,55 @@ const yearsArrayDesc = Array.from(yearlyMap.values()).sort((a, b) => b.year - a.
             <table className="min-w-full divide-y divide-slate-700">
               <thead className="bg-slate-900/60">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">NAV (₹)</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Year</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Latest NAV (₹)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Change (₹)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">% Change</th>
                 </tr>
               </thead>
-            <tbody className="bg-slate-800/30 divide-y divide-slate-700">
-  {(!yearsArrayDesc || yearsArrayDesc.length === 0) ? (
-    <tr>
-      <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
-        No NAV entries for this period.
-      </td>
-    </tr>
-  ) : (
-    // yearsArrayDesc is current-year -> older
-    yearsArrayDesc.map((row, idx) => {
-      const currentNav = Number(row.nav || 0);
-      // previous year in table (older) is next element in yearsArrayDesc
-      const nextRow = yearsArrayDesc[idx + 1];
-      const previousNav = nextRow ? Number(nextRow.nav || 0) : null;
-      const diff = previousNav !== null ? currentNav - previousNav : 0;
-      const diffPercent = previousNav !== null && previousNav !== 0 ? (diff / previousNav) * 100 : 0;
-      const isPos = diff >= 0;
+              <tbody className="bg-slate-800/30 divide-y divide-slate-700">
+                {(!yearsArrayDesc || yearsArrayDesc.length === 0) ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                      No yearly summary available.
+                    </td>
+                  </tr>
+                ) : (
+                  yearsArrayDesc.map((row, idx) => {
+                    const currentNav = Number(row.nav || 0);
+                    const nextRow = yearsArrayDesc[idx + 1];
+                    const previousNav = nextRow ? Number(nextRow.nav || 0) : null;
+                    const diff = previousNav !== null ? currentNav - previousNav : 0;
+                    const diffPercent = previousNav !== null && previousNav !== 0 ? (diff / previousNav) * 100 : 0;
+                    const isPos = diff >= 0;
 
-      return (
-        <tr key={`yr-${row.year}`} className="group hover:bg-slate-900/40 transition-colors">
-          <td className="px-4 py-3 text-left align-middle text-sm text-slate-200">
-            {row.year}
-          </td>
-          <td className="px-4 py-3 text-right align-middle text-sm font-medium text-white">
-            {currentNav.toFixed(2)}
-          </td>
-          <td className={`px-4 py-3 text-right align-middle text-sm ${isPos ? "text-emerald-400" : "text-red-400"}`}>
-            {previousNav !== null ? (diff >= 0 ? "+" : "") + diff.toFixed(2) : "—"}
-          </td>
-          <td className={`px-4 py-3 text-right align-middle text-sm ${isPos ? "text-emerald-400" : "text-red-400"}`}>
-            {previousNav !== null ? (diffPercent >= 0 ? "+" : "") + diffPercent.toFixed(2) + "%" : "—"}
-          </td>
-        </tr>
-      );
-    })
-  )}
-</tbody>
-
+                    return (
+                      <tr key={`yr-${row.year}`} className="group hover:bg-slate-900/40 transition-colors">
+                        <td className="px-4 py-3 text-left align-middle text-sm text-slate-200">
+                          {row.year}
+                        </td>
+                        <td className="px-4 py-3 text-right align-middle text-sm font-medium text-white">
+                          {currentNav.toFixed(2)}
+                        </td>
+                        <td className={`px-4 py-3 text-right align-middle text-sm ${isPos ? "text-emerald-400" : "text-red-400"}`}>
+                          {previousNav !== null ? (diff >= 0 ? "+" : "") + diff.toFixed(2) : "—"}
+                        </td>
+                        <td className={`px-4 py-3 text-right align-middle text-sm ${isPos ? "text-emerald-400" : "text-red-400"}`}>
+                          {previousNav !== null ? (diffPercent >= 0 ? "+" : "") + diffPercent.toFixed(2) + "%" : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
             </table>
           </div>
 
           <p className="mt-3 text-xs text-slate-500">
-            Notes: Table shows values for the selected time filter. For "Max" the table will show the full available history returned by the API (newest → oldest).
+            Notes: This table is static and shows latest NAV per year derived from the full history returned by the API.
           </p>
         </div>
+
       </div>
     </div>
   );
