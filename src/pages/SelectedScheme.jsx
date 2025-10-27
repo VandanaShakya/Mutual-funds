@@ -11,7 +11,7 @@ import {
   Legend,
   PointElement,
   LineElement,
-  Filler
+  Filler,
 } from "chart.js";
 import { Chart } from "react-chartjs-2";
 
@@ -40,6 +40,7 @@ const SelectedSchemePage = () => {
   const [dataAvailability, setDataAvailability] = useState({
     max_period: true,
     five_year: true,
+    three_month: true, // UPDATED: Changed from three_year
     two_year: true,
     one_year: true,
     six_month: true,
@@ -58,71 +59,33 @@ const SelectedSchemePage = () => {
         const allData = Array.isArray(json.data) ? json.data : [];
         const hasAnyData = allData.length > 0;
 
+        // Helper to create date object from DD-MM-YYYY string
+        const createDate = (dateString) => {
+          const dateParts = dateString.split("-");
+          // Date constructor uses month index (0-11)
+          return new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+        };
+
         if (hasAnyData) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
 
+          const filterData = (months) => {
+            const targetDate = new Date(today);
+            targetDate.setMonth(today.getMonth() - months);
+            return allData.filter((item) => {
+              const itemDate = createDate(item.date);
+              return itemDate >= targetDate && itemDate <= today;
+            });
+          };
+
           const maxPeriodData = allData;
-
-          const fiveYearDate = new Date(today);
-          fiveYearDate.setMonth(today.getMonth() - 60);
-          const fiveYearData = allData.filter((item) => {
-            const dateParts = item.date.split("-");
-            const itemDate = new Date(
-              dateParts[2],
-              dateParts[1] - 1,
-              dateParts[0]
-            );
-            return itemDate >= fiveYearDate && itemDate <= today;
-          });
-
-          const twoYearDate = new Date(today);
-          twoYearDate.setMonth(today.getMonth() - 24);
-          const twoYearData = allData.filter((item) => {
-            const dateParts = item.date.split("-");
-            const itemDate = new Date(
-              dateParts[2],
-              dateParts[1] - 1,
-              dateParts[0]
-            );
-            return itemDate >= twoYearDate && itemDate <= today;
-          });
-
-          const oneYearDate = new Date(today);
-          oneYearDate.setMonth(today.getMonth() - 12);
-          const oneYearData = allData.filter((item) => {
-            const dateParts = item.date.split("-");
-            const itemDate = new Date(
-              dateParts[2],
-              dateParts[1] - 1,
-              dateParts[0]
-            );
-            return itemDate >= oneYearDate && itemDate <= today;
-          });
-
-          const sixMonthDate = new Date(today);
-          sixMonthDate.setMonth(today.getMonth() - 6);
-          const sixMonthData = allData.filter((item) => {
-            const dateParts = item.date.split("-");
-            const itemDate = new Date(
-              dateParts[2],
-              dateParts[1] - 1,
-              dateParts[0]
-            );
-            return itemDate >= sixMonthDate && itemDate <= today;
-          });
-
-          const oneMonthDate = new Date(today);
-          oneMonthDate.setMonth(today.getMonth() - 1);
-          const oneMonthData = allData.filter((item) => {
-            const dateParts = item.date.split("-");
-            const itemDate = new Date(
-              dateParts[2],
-              dateParts[1] - 1,
-              dateParts[0]
-            );
-            return itemDate >= oneMonthDate && itemDate <= today;
-          });
+          const fiveYearData = filterData(60);
+          const twoYearData = filterData(24);
+          const oneYearData = filterData(12);
+          const sixMonthData = filterData(6);
+          const threeMonthData = filterData(3); // NEW/UPDATED: 3 Months
+          const oneMonthData = filterData(1);
 
           setDataAvailability({
             max_period: maxPeriodData.length > 0,
@@ -130,29 +93,24 @@ const SelectedSchemePage = () => {
             two_year: twoYearData.length > 0,
             one_year: oneYearData.length > 0,
             six_month: sixMonthData.length > 0,
+            three_month: threeMonthData.length > 0, // UPDATED
             one_month: oneMonthData.length > 0,
           });
 
-          // Default time filter to the largest available period
-          if (maxPeriodData.length > 0) {
-            setTimeFilter("max_period");
-            setChartType("line");
-          } else if (fiveYearData.length > 0) {
-            setTimeFilter("five_year");
-            setChartType("line");
-          } else if (twoYearData.length > 0) {
-            setTimeFilter("two_year");
-            setChartType("line");
-          } else if (oneYearData.length > 0) {
-            setTimeFilter("one_year");
-            setChartType("line");
-          } else if (sixMonthData.length > 0) {
-            setTimeFilter("six_month");
-            setChartType("line");
-          } else if (oneMonthData.length > 0) {
-            setTimeFilter("one_month");
-            setChartType("line");
-          } else {
+          // Default time filter to the largest available period (adjusted order)
+          let defaultFilter = "one_month"; // Start with smallest
+          if (maxPeriodData.length > 0) defaultFilter = "max_period";
+          else if (fiveYearData.length > 0) defaultFilter = "five_year";
+          else if (twoYearData.length > 0) defaultFilter = "two_year";
+          else if (oneYearData.length > 0) defaultFilter = "one_year";
+          else if (sixMonthData.length > 0) defaultFilter = "six_month";
+          else if (threeMonthData.length > 0) defaultFilter = "three_month"; // NEW/UPDATED
+          else if (oneMonthData.length > 0) defaultFilter = "one_month";
+
+          setTimeFilter(defaultFilter);
+          setChartType("line");
+
+          if (!hasAnyData) {
             setChartType("bar"); // fallback
           }
         }
@@ -239,6 +197,9 @@ const SelectedSchemePage = () => {
         break;
       case "six_month":
         targetDate.setMonth(today.getMonth() - 6);
+        break;
+      case "three_month": // UPDATED: 3 Months
+        targetDate.setMonth(today.getMonth() - 3);
         break;
       case "one_month":
       default:
@@ -421,6 +382,9 @@ const SelectedSchemePage = () => {
       case "six_month":
         startDate.setMonth(today.getMonth() - 6);
         return `Last 6 Months (${formatDate(startDate)} to ${formatDate(today)})`;
+      case "three_month": // UPDATED: 3 Months
+        startDate.setMonth(today.getMonth() - 3);
+        return `Last 3 Months (${formatDate(startDate)} to ${formatDate(today)})`;
       case "one_month":
       default:
         startDate.setMonth(today.getMonth() - 1);
@@ -505,10 +469,7 @@ const SelectedSchemePage = () => {
         {/* Scheme Header Card */}
         <div className="mb-6 p-8 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm">
           <div className="flex items-start justify-between flex-wrap gap-4">
-            <div className="flex-1">
-              <div className="inline-block px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 mb-3">
-                <span className="text-xs font-mono text-blue-400">#{schemeCode}</span>
-              </div>
+            <div className="flex-1 pt-10">
               <h1 className="text-3xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
                 {schemeData.meta.scheme_name}
               </h1>
@@ -537,7 +498,6 @@ const SelectedSchemePage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                     </svg>
                     <span className="font-semibold">{isPositive ? "+" : ""}{changePercent}%</span>
-                    <span className="text-xs text-slate-500">({navValues.length} days)</span>
                   </div>
                 </>
               ) : (
@@ -603,146 +563,113 @@ const SelectedSchemePage = () => {
           </div>
 
           {/* Action Buttons (Time Filters) */}
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mt-6">
-            {/* Max Period */}
-            <button
-              onClick={() => dataAvailability.max_period && setTimeFilter("max_period")}
-              disabled={!dataAvailability.max_period}
-              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
-                !dataAvailability.max_period
-                  ? "opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30"
-                  : timeFilter === "max_period"
-                  ? "from-yellow-500/30 to-yellow-600/30 border-yellow-400 shadow-lg shadow-yellow-500/20 hover:-translate-y-0.5"
-                  : "from-yellow-500/20 to-yellow-600/20 border-yellow-500/30 hover:border-yellow-400 hover:shadow-yellow-500/20 hover:-translate-y-0.5"
-              }`}
-            >
-              <div className={`absolute inset-0 transition-all duration-300 ${!dataAvailability.max_period ? "" : timeFilter === "max_period" ? "from-yellow-500/10 to-yellow-600/10" : "from-yellow-500/0 to-yellow-600/0 group-hover:from-yellow-500/10 group-hover:to-yellow-600/10"}`}></div>
-              <div className="relative flex items-center justify-center gap-3">
-                <svg className={`w-5 h-5 ${dataAvailability.max_period ? "text-yellow-400" : "text-slate-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 012 2v2a2 2 0 01-2 2m0-6a2 2 0 00-2 2v2a2 2 0 002 2M5 9h2m-2 0a2 2 0 00-2 2v2a2 2 0 002 2m0-4a2 2 0 012 2v2a2 2 0 01-2 2m14-4h-2m2 0a2 2 0 01-2 2v2a2 2 0 01-2 2m0-4a2 2 0 00-2 2v2a2 2 0 002 2M9 16h6m-3-4v8m-4 0v4m8-4v4"></path>
-                </svg>
-                <span className={`font-semibold ${dataAvailability.max_period ? "text-white" : "text-slate-600"}`}>Max</span>
-              </div>
-              {!dataAvailability.max_period && (
-                <div className="absolute top-1 right-1">
-                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
-                    <span className="text-xs text-slate-500">No Data</span>
-                  </div>
-                </div>
-              )}
-            </button>
+          <div className="flex justify-center items-center mt-6">
+            <div className="flex gap-4 flex-wrap justify-center items-center max-w-3xl mx-auto">
+              {/* 1 Month (Existing, now with proper placement) */}
+              <button
+                onClick={() => dataAvailability.one_month && setTimeFilter("one_month")}
+                disabled={!dataAvailability.one_month}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-mono text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.one_month
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "one_month"
+                      ? "bg-gradient-to-br from-pink-500/20 to-pink-600/20 border-pink-400 text-pink-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-pink-500/5 to-pink-600/10 border-pink-600/30 hover:scale-105 hover:text-pink-300 hover:border-pink-400/60"}
+                `}
+              >
+                1M
+              </button>
 
-            {/* 5 Years */}
-            <button
-              onClick={() => dataAvailability.five_year && setTimeFilter("five_year")}
-              disabled={!dataAvailability.five_year}
-              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
-                !dataAvailability.five_year
-                  ? "opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30"
-                  : timeFilter === "five_year"
-                  ? "from-red-500/30 to-red-600/30 border-red-400 shadow-lg shadow-red-500/20 hover:-translate-y-0.5"
-                  : "from-red-500/20 to-red-600/20 border-red-500/30 hover:border-red-400 hover:shadow-red-500/20 hover:-translate-y-0.5"
-              }`}
-            >
-              <div className={`absolute inset-0 transition-all duration-300 ${!dataAvailability.five_year ? "" : timeFilter === "five_year" ? "from-red-500/10 to-red-600/10" : "from-red-500/0 to-red-600/0 group-hover:from-red-500/10 group-hover:to-red-600/10"}`}></div>
-              <div className="relative flex items-center justify-center gap-3">
-                <svg className={`w-5 h-5 ${dataAvailability.five_year ? "text-red-400" : "text-slate-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <span className={`font-semibold ${dataAvailability.five_year ? "text-white" : "text-slate-600"}`}>5 Years</span>
-              </div>
-              {!dataAvailability.five_year && (
-                <div className="absolute top-1 right-1">
-                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
-                    <span className="text-xs text-slate-500">No Data</span>
-                  </div>
-                </div>
-              )}
-            </button>
+              {/* 3 Months (NEW BUTTON - Replaces 3Y) */}
+              <button
+                onClick={() => dataAvailability.three_month && setTimeFilter("three_month")}
+                disabled={!dataAvailability.three_month}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-semibold text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.three_month
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "three_month"
+                      ? "bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 border-indigo-400 text-indigo-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-indigo-500/5 to-indigo-600/10 border-indigo-600/30 hover:scale-105 hover:text-indigo-300 hover:border-indigo-400/60"}
+                `}
+              >
+                3M
+              </button>
+              
+              {/* 6 Months (Existing) */}
+              <button
+                onClick={() => dataAvailability.six_month && setTimeFilter("six_month")}
+                disabled={!dataAvailability.six_month}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-mono text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.six_month
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "six_month"
+                      ? "bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border-emerald-400 text-emerald-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-emerald-500/5 to-emerald-600/10 border-emerald-600/30 hover:scale-105 hover:text-emerald-300 hover:border-emerald-400/60"}
+                `}
+              >
+                6M
+              </button>
 
-            {/* 2 Years */}
-            <button
-              onClick={() => dataAvailability.two_year && setTimeFilter("two_year")}
-              disabled={!dataAvailability.two_year}
-              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
-                !dataAvailability.two_year
-                  ? "opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30"
-                  : timeFilter === "two_year"
-                  ? "from-blue-500/30 to-blue-600/30 border-blue-400 shadow-lg shadow-blue-500/20 hover:-translate-y-0.5"
-                  : "from-blue-500/20 to-blue-600/20 border-blue-500/30 hover:border-blue-400 hover:shadow-blue-500/20 hover:-translate-y-0.5"
-              }`}
-            >
-              <div className={`absolute inset-0 transition-all duration-300 ${!dataAvailability.two_year ? "" : timeFilter === "two_year" ? "from-blue-500/10 to-blue-600/10" : "from-blue-500/0 to-blue-600/0 group-hover:from-blue-500/10 group-hover:to-blue-600/10"}`}></div>
-              <div className="relative flex items-center justify-center gap-3">
-                <svg className={`w-5 h-5 ${dataAvailability.two_year ? "text-blue-400" : "text-slate-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <span className={`font-semibold ${dataAvailability.two_year ? "text-white" : "text-slate-600"}`}>2 Years</span>
-              </div>
-              {!dataAvailability.two_year && (
-                <div className="absolute top-1 right-1">
-                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
-                    <span className="text-xs text-slate-500">No Data</span>
-                  </div>
-                </div>
-              )}
-            </button>
+              {/* 1 Year (Existing) */}
+              <button
+                onClick={() => dataAvailability.one_year && setTimeFilter("one_year")}
+                disabled={!dataAvailability.one_year}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-mono text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.one_year
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "one_year"
+                      ? "bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border-cyan-400 text-cyan-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-cyan-500/5 to-cyan-600/10 border-cyan-600/30 hover:scale-105 hover:text-cyan-300 hover:border-cyan-400/60"}
+                `}
+              >
+                1Y
+              </button>
 
-            {/* 1 Year */}
-            <button
-              onClick={() => dataAvailability.one_year && setTimeFilter("one_year")}
-              disabled={!dataAvailability.one_year}
-              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
-                !dataAvailability.one_year
-                  ? "opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30"
-                  : timeFilter === "one_year"
-                  ? "from-cyan-500/30 to-cyan-600/30 border-cyan-400 shadow-lg shadow-cyan-500/20 hover:-translate-y-0.5"
-                  : "from-cyan-500/20 to-cyan-600/20 border-cyan-500/30 hover:border-cyan-400 hover:shadow-cyan-500/20 hover:-translate-y-0.5"
-              }`}
-            >
-              <div className={`absolute inset-0 transition-all duration-300 ${!dataAvailability.one_year ? "" : timeFilter === "one_year" ? "from-cyan-500/10 to-cyan-600/10" : "from-cyan-500/0 to-cyan-600/0 group-hover:from-cyan-500/10 group-hover:to-cyan-600/10"}`}></div>
-              <div className="relative flex items-center justify-center gap-3">
-                <svg className={`w-5 h-5 ${dataAvailability.one_year ? "text-cyan-400" : "text-slate-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <span className={`font-semibold ${dataAvailability.one_year ? "text-white" : "text-slate-600"}`}>1 Year</span>
-              </div>
-              {!dataAvailability.one_year && (
-                <div className="absolute top-1 right-1">
-                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
-                    <span className="text-xs text-slate-500">No Data</span>
-                  </div>
-                </div>
-              )}
-            </button>
+              {/* 2 Years (Existing) */}
+              <button
+                onClick={() => dataAvailability.two_year && setTimeFilter("two_year")}
+                disabled={!dataAvailability.two_year}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-semibold text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.two_year
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "two_year"
+                      ? "bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-blue-400 text-blue-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-blue-500/5 to-blue-600/10 border-blue-600/30 hover:scale-105 hover:text-blue-300 hover:border-blue-400/60"}
+                `}
+              >
+                2Y
+              </button>
 
-            {/* 6 Months */}
-            <button
-              onClick={() => dataAvailability.six_month && setTimeFilter("six_month")}
-              disabled={!dataAvailability.six_month}
-              className={`group relative overflow-hidden px-6 py-4 rounded-xl border transition-all duration-300 ${
-                !dataAvailability.six_month
-                  ? "opacity-50 cursor-not-allowed from-slate-700/20 to-slate-800/20 border-slate-600/30"
-                  : timeFilter === "six_month"
-                  ? "from-emerald-500/30 to-emerald-600/30 border-emerald-400 shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5"
-                  : "from-emerald-500/20 to-emerald-600/20 border-emerald-500/30 hover:border-emerald-400 hover:shadow-emerald-500/20 hover:-translate-y-0.5"
-              }`}
-            >
-              <div className={`absolute inset-0 transition-all duration-300 ${!dataAvailability.six_month ? "" : timeFilter === "six_month" ? "from-emerald-500/10 to-emerald-600/10" : "from-emerald-500/0 to-emerald-600/0 group-hover:from-emerald-500/10 group-hover:to-emerald-600/10"}`}></div>
-              <div className="relative flex items-center justify-center gap-3">
-                <svg className={`w-5 h-5 ${dataAvailability.six_month ? "text-emerald-400" : "text-slate-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <span className={`font-semibold ${dataAvailability.six_month ? "text-white" : "text-slate-600"}`}>6 Months</span>
-              </div>
-              {!dataAvailability.six_month && (
-                <div className="absolute top-1 right-1">
-                  <div className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
-                    <span className="text-xs text-slate-500">No Data</span>
-                  </div>
-                </div>
-              )}
-            </button>
+              {/* 5 Years (Existing) */}
+              <button
+                onClick={() => dataAvailability.five_year && setTimeFilter("five_year")}
+                disabled={!dataAvailability.five_year}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-mono text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.five_year
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "five_year"
+                      ? "bg-gradient-to-br from-red-500/20 to-red-600/20 border-red-400 text-red-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-red-500/5 to-red-600/10 border-red-600/30 hover:scale-105 hover:text-red-300 hover:border-red-400/60"}
+                `}
+              >
+                5Y
+              </button>
+
+              {/* MAX (Existing) */}
+              <button
+                onClick={() => dataAvailability.max_period && setTimeFilter("max_period")}
+                disabled={!dataAvailability.max_period}
+                className={`w-10 h-10 flex items-center justify-center hover:cursor-pointer rounded-full border font-mono text-sm transition-all duration-300 ease-out
+                  ${!dataAvailability.max_period
+                    ? "opacity-50 cursor-not-allowed bg-slate-800/30 border-slate-700 text-slate-500"
+                    : timeFilter === "max_period"
+                      ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border-yellow-400 text-yellow-300 shadow-lg scale-105"
+                      : "bg-gradient-to-br from-yellow-500/5 to-yellow-600/10 border-yellow-600/30 hover:scale-105 hover:text-yellow-300 hover:border-yellow-400/60"}
+                `}
+              >
+                MAX
+              </button>
+            </div>
           </div>
         </div>
 
