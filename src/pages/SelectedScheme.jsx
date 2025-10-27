@@ -40,7 +40,7 @@ const SelectedSchemePage = () => {
   const [dataAvailability, setDataAvailability] = useState({
     max_period: true,
     five_year: true,
-    three_month: true, // UPDATED: Changed from three_year
+    three_month: true, 
     two_year: true,
     one_year: true,
     six_month: true,
@@ -84,7 +84,7 @@ const SelectedSchemePage = () => {
           const twoYearData = filterData(24);
           const oneYearData = filterData(12);
           const sixMonthData = filterData(6);
-          const threeMonthData = filterData(3); // NEW/UPDATED: 3 Months
+          const threeMonthData = filterData(3); 
           const oneMonthData = filterData(1);
 
           setDataAvailability({
@@ -93,7 +93,7 @@ const SelectedSchemePage = () => {
             two_year: twoYearData.length > 0,
             one_year: oneYearData.length > 0,
             six_month: sixMonthData.length > 0,
-            three_month: threeMonthData.length > 0, // UPDATED
+            three_month: threeMonthData.length > 0, 
             one_month: oneMonthData.length > 0,
           });
 
@@ -104,7 +104,7 @@ const SelectedSchemePage = () => {
           else if (twoYearData.length > 0) defaultFilter = "two_year";
           else if (oneYearData.length > 0) defaultFilter = "one_year";
           else if (sixMonthData.length > 0) defaultFilter = "six_month";
-          else if (threeMonthData.length > 0) defaultFilter = "three_month"; // NEW/UPDATED
+          else if (threeMonthData.length > 0) defaultFilter = "three_month"; 
           else if (oneMonthData.length > 0) defaultFilter = "one_month";
 
           setTimeFilter(defaultFilter);
@@ -198,7 +198,7 @@ const SelectedSchemePage = () => {
       case "six_month":
         targetDate.setMonth(today.getMonth() - 6);
         break;
-      case "three_month": // UPDATED: 3 Months
+      case "three_month": 
         targetDate.setMonth(today.getMonth() - 3);
         break;
       case "one_month":
@@ -382,7 +382,7 @@ const SelectedSchemePage = () => {
       case "six_month":
         startDate.setMonth(today.getMonth() - 6);
         return `Last 6 Months (${formatDate(startDate)} to ${formatDate(today)})`;
-      case "three_month": // UPDATED: 3 Months
+      case "three_month": 
         startDate.setMonth(today.getMonth() - 3);
         return `Last 3 Months (${formatDate(startDate)} to ${formatDate(today)})`;
       case "one_month":
@@ -441,7 +441,7 @@ const SelectedSchemePage = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       {/* Header */}
       <div className="sticky top-0 z-50 backdrop-blur-xl bg-slate-900/80 border-b border-slate-800/50 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+        <div className="max-w-7xl mx-auto **px-4 sm:px-8** py-4">
           <button
             onClick={() => navigate("/")}
             className="flex items-center gap-2 text-slate-400 hover:text-blue-400 transition-colors duration-300 group"
@@ -465,12 +465,15 @@ const SelectedSchemePage = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
+      {/* ***UPDATED: Removed base `px-4` and kept `sm:px-8` for desktop padding.
+        This allows the cards to stretch full-width on mobile.*** */}
+      <div className="max-w-7xl mx-auto sm:px-8 py-8">
         {/* Scheme Header Card */}
-        <div className="mb-6 p-8 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm">
+        {/* ***UPDATED: px-4 on mobile and p-8 on sm (desktop)*** */}
+        <div className="mb-6 px-4 py-6 sm:p-8 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm mx-auto sm:mx-0">
           <div className="flex items-start justify-between flex-wrap gap-4">
-            <div className="flex-1 pt-10">
-              <h1 className="text-3xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
+            <div className="flex-1 pt-0 sm:pt-10">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
                 {schemeData.meta.scheme_name}
               </h1>
               <div className="flex flex-wrap gap-4 text-sm">
@@ -488,13 +491,13 @@ const SelectedSchemePage = () => {
             </div>
 
             {/* Performance Card */}
-            <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-700/50 min-w-[200px]">
+            <div className="p-4 sm:p-6 rounded-xl bg-slate-900/50 border border-slate-700/50 min-w-[150px] sm:min-w-[200px]">
               <p className="text-slate-400 text-sm mb-2">Current NAV</p>
               {hasData ? (
                 <>
-                  <p className="text-3xl font-bold text-white mb-2">₹{latestNav.toFixed(2)}</p>
-                  <div className={`flex items-center gap-2 ${isPositive ? "text-green-400" : "text-red-400"}`}>
-                    <svg className={`w-5 h-5 ${isPositive ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <p className="text-2xl sm:text-3xl font-bold text-white mb-2">₹{latestNav.toFixed(2)}</p>
+                  <div className={`flex items-center gap-2 text-sm sm:text-base ${isPositive ? "text-green-400" : "text-red-400"}`}>
+                    <svg className={`w-4 h-4 sm:w-5 sm:h-5 ${isPositive ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                     </svg>
                     <span className="font-semibold">{isPositive ? "+" : ""}{changePercent}%</span>
@@ -513,10 +516,11 @@ const SelectedSchemePage = () => {
         </div>
 
         {/* Chart Section */}
-        <div className="mb-6 p-8 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm">
+        {/* ***UPDATED: px-4 on mobile and p-8 on sm (desktop)*** */}
+        <div className="mb-6 px-4 py-6 sm:p-8 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-slate-700/50 backdrop-blur-sm mx-auto sm:mx-0">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-1">NAV Performance</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">NAV Performance</h2>
               <p className="text-slate-400 text-sm">{getTimePeriodText()} trend analysis</p>
             </div>
 
@@ -545,7 +549,8 @@ const SelectedSchemePage = () => {
             </div>
           </div>
 
-          <div className="h-[400px] p-4 rounded-xl bg-slate-900/30">
+          {/* ***UPDATED: Reduced mobile padding on chart container to px-2*** */}
+          <div className="h-[300px] sm:h-[400px] px-2 py-4 sm:p-4 rounded-xl bg-slate-900/30">
             {hasData ? (
               renderChart()
             ) : (
@@ -564,7 +569,7 @@ const SelectedSchemePage = () => {
 
           {/* Action Buttons (Time Filters) */}
           <div className="flex justify-center items-center mt-6">
-            <div className="flex gap-4 flex-wrap justify-center items-center max-w-3xl mx-auto">
+            <div className="flex gap-3 sm:gap-4 flex-wrap justify-center items-center max-w-3xl mx-auto">
               {/* 1 Month (Existing, now with proper placement) */}
               <button
                 onClick={() => dataAvailability.one_month && setTimeFilter("one_month")}
@@ -674,13 +679,14 @@ const SelectedSchemePage = () => {
         </div>
 
         {/* ---------------- YEARLY SUMMARY TABLE (Full History) ---------------- */}
-        <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-800/20 border border-slate-700/40">
+        {/* ***UPDATED: px-4 on mobile and p-6 on sm (desktop)*** */}
+        <div className="mb-8 px-4 py-6 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-800/20 border border-slate-700/40 mx-auto sm:mx-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-xl font-semibold">Yearly Summary (Full History)</h3>
-              <p className="text-slate-400 text-sm">Static summary built from full available history (Max previous).</p>
+              <h3 className="text-lg sm:text-xl font-semibold">Yearly Summary (Full History)</h3>
+              <p className="text-slate-400 text-xs sm:text-sm">Static summary built from full available history (Max previous).</p>
             </div>
-            <div className="text-sm text-slate-400">
+            <div className="text-xs sm:text-sm text-slate-400">
               <span>Total years: {yearsArrayDesc.length}</span>
             </div>
           </div>
