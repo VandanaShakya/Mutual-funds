@@ -1,8 +1,8 @@
 
 
-import MfData from './components/MfData'
+import MfData from './pages/MfData'
 import { Route, Routes } from 'react-router-dom'
-import SelectedScheme from './components/SelectedScheme'
+import SelectedScheme from './pages/SelectedScheme'
 
 function App() {
 
